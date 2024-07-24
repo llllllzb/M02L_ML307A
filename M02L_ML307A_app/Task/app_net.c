@@ -914,8 +914,8 @@ void noNetTimeInit(void)
 
 void updateNoNetTime(void)
 {
-	sysinfo.noNetTime += 2;
-	sysinfo.noNetTime = sysinfo.noNetTime > 5 ? 1 : sysinfo.noNetTime;
+	sysinfo.noNetTime = 1;
+	//sysinfo.noNetTime = sysinfo.noNetTime > 5 ? 1 : sysinfo.noNetTime;
 	LogPrintf(DEBUG_ALL, "%s==>check net gap:%d", __FUNCTION__, sysinfo.noNetTime);
 }
 
@@ -1077,6 +1077,7 @@ void netConnectTask(void)
 //        	sendModuleCmd(CPMS_CMD, "\"ME\",\"ME\",\"ME\"");	/*修改短信存储位置*/
 //        	sendModuleCmd(CNMI_CMD, "2,2");						/*第二个参数表示缓存在ME中, 不立即上报*/
 //        	sendModuleCmd(CMGF_CMD, "1");						/*TEXT模式*/
+			sendModuleCmd(CEREG_CMD, "2");
 			sendModuleCmd(CGSN_CMD, "1");
 			sendModuleCmd(CIMI_CMD, NULL);
 			sendModuleCmd(MCCID_CMD, NULL);
@@ -1189,6 +1190,8 @@ static void cgregParser(uint8_t *buf, uint16_t len)
     char restore[50];
     uint8_t cnt;
     uint8_t type = 0;
+   	uint16_t lac;
+    uint32_t cid;
     index = my_getstrindex((char *)buf, "+CGREG:", len);
     if (index < 0)
     {
@@ -1231,15 +1234,26 @@ static void cgregParser(uint8_t *buf, uint16_t len)
                             }
                             break;
                         case 3:
-
-                            moduleState.lac = strtoul(restore + 1, NULL, 16);
-                            LogPrintf(DEBUG_ALL, "LAC=%s,0x%X", restore, moduleState.lac);
+                            lac = strtoul(restore + 1, NULL, 16);
+                            //LogPrintf(DEBUG_ALL, "LAC=%s,0x%X", restore, moduleState.lac);
                             break;
                         case 4:
-                            moduleState.cid = strtoul(restore + 1, NULL, 16);
-                            LogPrintf(DEBUG_ALL, "CID=%s,0x%X", restore, moduleState.cid);
-                            sendModuleCmd(CEREG_CMD, "0");
+                            cid = strtoul(restore + 1, NULL, 16);
+                            LogPrintf(DEBUG_ALL, "current lac:0x%x cid:0x%x  last lac:0x%x cid:0x%x ", 
+                            		lac, cid, moduleState.lac, moduleState.cid);
+                            //要实时检测基站信息的变化
+                            if (((moduleState.lac != lac && 0 != moduleState.lac) ||
+                            	 (moduleState.cid != cid && 0 != moduleState.cid)))
+                            {
+								LogPrintf(DEBUG_ALL, "LBS different, lbs wifireq");
+								lbsRequestSet(DEV_EXTEND_OF_MY);
+								wifiRequestSet(DEV_EXTEND_OF_MY);
+                            }
+                           	moduleState.lac = lac;
+                           	moduleState.cid = cid;
+                            LogPrintf(DEBUG_ALL, "LAC=0x%X CID=0x%X",  moduleState.lac, moduleState.cid);
                             break;
+
                     }
                     restore[0] = 0;
                 }
